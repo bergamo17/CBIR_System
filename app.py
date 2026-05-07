@@ -170,7 +170,7 @@ def load_assets():
  
     print("[CBIR] Loading CLIP model...")
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    model, preprocess = clip.load('ViT-B/16', device=device)
+    model, preprocess = clip.load('ViT-B/16', device=device, download_root='./clip_cache')
     model.eval()
     print(f"[CBIR] CLIP loaded on: {device}")
  

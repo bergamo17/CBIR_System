@@ -12,6 +12,7 @@ Official Image
 __pycache__/
 *.pyc
 *.pyo
+clip_cache/
 
 # Virtual environment
 venv/
