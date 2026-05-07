@@ -1,0 +1,22 @@
+# Model Weights
+mobile_sam.pt
+
+# Dataset & Feature Bank
+Dataset_New/
+Official Image
+
+# Environment Variables 
+.env
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Virtual environment
+venv/
+env/
+
+# OS files
+.DS_Store
+Thumbs.db

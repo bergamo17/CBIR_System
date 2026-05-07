@@ -1,0 +1,882 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>CBIR — Image Retrieval System</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --bg:       #0a0a0f;
+    --surface:  #111118;
+    --border:   #222230;
+    --accent:   #5b6ef5;
+    --accent2:  #c084fc;
+    --text:     #e8e8f0;
+    --muted:    #6b6b8a;
+    --success:  #34d399;
+    --danger:   #f87171;
+    --card:     #16161f;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Syne', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .blob {
+    position: fixed;
+    width: 600px; height: 600px;
+    border-radius: 50%;
+    filter: blur(120px);
+    opacity: 0.12;
+    pointer-events: none;
+    z-index: 0;
+  }
+  .blob-1 { background: var(--accent);  top: -200px; left: -100px; }
+  .blob-2 { background: var(--accent2); bottom: -200px; right: -100px; }
+
+  .wrap {
+    position: relative;
+    z-index: 1;
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 48px 24px 80px;
+  }
+
+  header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 56px;
+  }
+
+  .logo-mark {
+    width: 42px; height: 42px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Space Mono', monospace;
+    font-size: 13px;
+    font-weight: 700;
+    color: #fff;
+    flex-shrink: 0;
+  }
+
+  h1 { font-size: 22px; font-weight: 800; letter-spacing: -0.5px; }
+  h1 span {
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .subtitle {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-top: 2px;
+  }
+
+  .upload-panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 32px;
+    margin-bottom: 32px;
+  }
+
+  .drop-zone {
+    border: 2px dashed var(--border);
+    border-radius: 12px;
+    padding: 48px 24px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .drop-zone:hover, .drop-zone.dragover {
+    border-color: var(--accent);
+    background: rgba(91, 110, 245, 0.05);
+  }
+
+  .drop-zone input[type="file"] {
+    position: absolute; inset: 0;
+    opacity: 0; cursor: pointer;
+    width: 100%; height: 100%;
+  }
+
+  .drop-icon { font-size: 40px; margin-bottom: 12px; display: block; }
+  .drop-label { font-size: 15px; font-weight: 700; color: var(--text); margin-bottom: 6px; }
+  .drop-hint { font-family: 'Space Mono', monospace; font-size: 11px; color: var(--muted); }
+
+  #preview-wrap { display: none; margin-top: 20px; gap: 20px; align-items: flex-start; }
+  #preview-wrap.visible { display: flex; }
+
+  #query-preview {
+    width: 160px; height: 160px;
+    object-fit: cover;
+    border-radius: 10px;
+    border: 2px solid var(--border);
+    flex-shrink: 0;
+  }
+
+  .preview-info { flex: 1; }
+  .preview-filename { font-weight: 700; font-size: 14px; margin-bottom: 6px; word-break: break-all; }
+  .preview-meta { font-family: 'Space Mono', monospace; font-size: 11px; color: var(--muted); line-height: 1.8; }
+
+  .controls {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 20px;
+    flex-wrap: wrap;
+  }
+
+  .topk-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  select {
+    background: var(--card);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-family: 'Space Mono', monospace;
+    font-size: 12px;
+    cursor: pointer;
+    outline: none;
+  }
+  select:focus { border-color: var(--accent); }
+
+  .btn-search {
+    margin-left: auto;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    color: #fff;
+    border: none;
+    border-radius: 10px;
+    padding: 12px 28px;
+    font-family: 'Syne', sans-serif;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: opacity 0.2s, transform 0.1s;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .btn-search:hover { opacity: 0.9; }
+  .btn-search:active { transform: scale(0.97); }
+  .btn-search:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .spinner {
+    display: none;
+    width: 16px; height: 16px;
+    border: 2px solid rgba(255,255,255,0.3);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+  }
+  .searching .spinner { display: block; }
+  .searching .btn-icon { display: none; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  #status {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    margin-top: 12px;
+    padding: 8px 12px;
+    border-radius: 6px;
+    display: none;
+  }
+  #status.error { background: rgba(239,68,68,0.1); color: #f87171; display: block; }
+  #status.info  { background: rgba(91,110,245,0.1); color: #818cf8; display: block; }
+
+  #results-section { display: none; }
+  #results-section.visible { display: block; }
+
+  .results-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+  }
+
+  .results-title { font-size: 18px; font-weight: 800; }
+
+  .results-badge {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    color: var(--accent);
+    background: rgba(91,110,245,0.12);
+    border: 1px solid rgba(91,110,245,0.25);
+    padding: 4px 10px;
+    border-radius: 20px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+
+  .query-summary {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px 20px;
+    margin-bottom: 24px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .query-summary img {
+    width: 56px; height: 56px;
+    object-fit: cover;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+  }
+
+  .query-summary-text {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    line-height: 1.8;
+    flex: 1;
+  }
+
+  .query-summary-text strong {
+    color: var(--text);
+    font-size: 13px;
+    display: block;
+    margin-bottom: 2px;
+  }
+
+  /* ── REFINE BUTTON ── */
+  .btn-refine {
+    background: transparent;
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    border-radius: 8px;
+    padding: 8px 16px;
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    cursor: pointer;
+    transition: background 0.2s, color 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+  }
+  .btn-refine:hover { background: rgba(91,110,245,0.12); }
+  .btn-refine:disabled { opacity: 0.3; cursor: not-allowed; }
+
+  /* ── REFINE ITERATION BADGE ── */
+  .refine-badge {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    color: var(--success);
+    background: rgba(52,211,153,0.1);
+    border: 1px solid rgba(52,211,153,0.25);
+    padding: 4px 10px;
+    border-radius: 20px;
+    display: none;
+  }
+  .refine-badge.visible { display: inline-block; }
+
+  /* ── RESULT LAYOUT — Featured + Row ── */
+  .result-layout {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  /* Top featured card (rank #1) */
+  .featured-card {
+    background: var(--card);
+    border: 2px solid var(--accent);
+    border-radius: 18px;
+    overflow: hidden;
+    display: flex;
+    gap: 0;
+    animation: fadeUp 0.35s ease both;
+    transition: border-color 0.2s, transform 0.2s;
+  }
+  .featured-card:hover { transform: translateY(-2px); }
+  .featured-card.relevant   { border-color: var(--success) !important; }
+  .featured-card.irrelevant { border-color: var(--danger)  !important; }
+
+  .featured-img-wrap {
+    position: relative;
+    width: 320px;
+    flex-shrink: 0;
+    background: var(--surface);
+    overflow: hidden;
+  }
+
+  .featured-img-wrap img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 0.3s;
+    display: block;
+  }
+  .featured-card:hover .featured-img-wrap img { transform: scale(1.03); }
+
+  .featured-badge {
+    position: absolute;
+    top: 12px; left: 12px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    color: #fff;
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 4px 12px;
+    border-radius: 20px;
+    letter-spacing: 0.5px;
+  }
+
+  .featured-feedback {
+    position: absolute;
+    bottom: 12px; right: 12px;
+    display: flex;
+    gap: 6px;
+  }
+
+  .featured-body {
+    padding: 28px 28px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    flex: 1;
+  }
+
+  .featured-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    margin-bottom: 8px;
+  }
+
+  .featured-class {
+    font-size: 26px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    margin-bottom: 10px;
+    line-height: 1.2;
+  }
+
+  .featured-meta {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    line-height: 1.8;
+  }
+
+  /* Bottom row of smaller cards */
+  .small-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+  }
+
+  /* fallback for fewer than 4 remaining */
+  .small-row.cols-3 { grid-template-columns: repeat(3, 1fr); }
+  .small-row.cols-2 { grid-template-columns: repeat(2, 1fr); }
+  .small-row.cols-1 { grid-template-columns: repeat(1, 1fr); }
+
+  .result-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    overflow: hidden;
+    transition: border-color 0.2s, transform 0.2s;
+    animation: fadeUp 0.4s ease both;
+  }
+
+  .result-card:hover { border-color: var(--accent); transform: translateY(-3px); }
+  .result-card.relevant   { border-color: var(--success) !important; }
+  .result-card.irrelevant { border-color: var(--danger)  !important; }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .result-card:nth-child(1) { animation-delay: 80ms;  }
+  .result-card:nth-child(2) { animation-delay: 140ms; }
+  .result-card:nth-child(3) { animation-delay: 200ms; }
+  .result-card:nth-child(4) { animation-delay: 260ms; }
+
+  .card-rank {
+    position: absolute;
+    top: 8px; left: 8px;
+    background: rgba(0,0,0,0.65);
+    backdrop-filter: blur(4px);
+    color: #fff;
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 20px;
+  }
+
+  .card-img-wrap {
+    position: relative;
+    aspect-ratio: 1;
+    background: var(--surface);
+    overflow: hidden;
+  }
+
+  .card-img-wrap img {
+    width: 100%; height: 100%;
+    object-fit: cover;
+    transition: transform 0.3s;
+  }
+  .result-card:hover .card-img-wrap img { transform: scale(1.04); }
+
+  .card-no-img {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%; height: 100%;
+    font-size: 32px;
+    color: var(--muted);
+  }
+
+  /* ── FEEDBACK BUTTONS ── */
+  .feedback-btns {
+    position: absolute;
+    bottom: 8px; right: 8px;
+    display: flex;
+    gap: 4px;
+  }
+
+  .fb-btn {
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    border: 1px solid rgba(255,255,255,0.15);
+    background: rgba(0,0,0,0.55);
+    backdrop-filter: blur(4px);
+    cursor: pointer;
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.15s, background 0.15s, border-color 0.15s;
+  }
+  .fb-btn:hover { transform: scale(1.15); }
+
+  .fb-yes.active {
+    background: rgba(52, 211, 153, 0.3);
+    border-color: var(--success);
+  }
+  .fb-no.active {
+    background: rgba(248, 113, 113, 0.3);
+    border-color: var(--danger);
+  }
+
+  .card-body { padding: 10px 12px 12px; }
+
+  .card-class {
+    font-weight: 800;
+    font-size: 12px;
+    margin-bottom: 4px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .card-meta {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    line-height: 1.6;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  footer {
+    position: relative;
+    z-index: 1;
+    text-align: center;
+    padding: 24px;
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    letter-spacing: 0.5px;
+  }
+</style>
+</head>
+<body>
+<div class="blob blob-1"></div>
+<div class="blob blob-2"></div>
+
+<div class="wrap">
+  <header>
+    <div class="logo-mark">CB</div>
+    <div>
+      <h1>Content-Based <span>Image Retrieval</span></h1>
+      <p class="subtitle">CLIP ViT-B/16 · FAISS · Similarity Score</p>
+    </div>
+  </header>
+
+  <div class="upload-panel">
+    <div class="drop-zone" id="drop-zone">
+      <input type="file" id="file-input" accept="image/*"/>
+      <span class="drop-icon">🔍</span>
+      <div class="drop-label">Upload Query Image</div>
+      <div class="drop-hint">Drag & drop atau klik untuk memilih gambar</div>
+    </div>
+
+    <div id="preview-wrap">
+      <img id="query-preview" src="" alt="Query preview"/>
+      <div class="preview-info">
+        <div class="preview-filename" id="preview-filename">—</div>
+        <div class="preview-meta" id="preview-meta">—</div>
+      </div>
+    </div>
+
+    <div class="controls">
+      <span class="topk-label">Top-K</span>
+      <select id="topk-select">
+        <option value="3">3 hasil</option>
+        <option value="5" selected>5 hasil</option>
+        <option value="10">10 hasil</option>
+      </select>
+      <button class="btn-search" id="btn-search" disabled>
+        <span class="btn-icon">⚡</span>
+        <div class="spinner"></div>
+        <span id="btn-label">Search</span>
+      </button>
+    </div>
+    <div id="status"></div>
+  </div>
+
+  <div id="results-section">
+    <div class="results-header">
+      <div class="results-title">Hasil Pencarian</div>
+      <div style="display:flex; align-items:center; gap:10px;">
+        <span class="refine-badge" id="refine-badge">—</span>
+        <div class="results-badge" id="results-badge">TOP 5</div>
+      </div>
+    </div>
+
+    <div class="query-summary" id="query-summary">
+      <img id="summary-query-img" src="" alt=""/>
+      <div class="query-summary-text">
+        <strong id="summary-top-class">—</strong>
+        <span id="summary-stats">—</span>
+      </div>
+      <button class="btn-refine" id="btn-refine" disabled>
+        <span>🔄</span> Refine
+      </button>
+    </div>
+
+    <!-- New layout: featured top + small row -->
+    <div class="result-layout" id="result-layout"></div>
+  </div>
+</div>
+
+<footer>CBIR System · CLIP + FAISS · Prototype</footer>
+
+<script>
+const fileInput       = document.getElementById('file-input');
+const dropZone        = document.getElementById('drop-zone');
+const previewWrap     = document.getElementById('preview-wrap');
+const queryPreview    = document.getElementById('query-preview');
+const previewFilename = document.getElementById('preview-filename');
+const previewMeta     = document.getElementById('preview-meta');
+const btnSearch       = document.getElementById('btn-search');
+const btnLabel        = document.getElementById('btn-label');
+const statusEl        = document.getElementById('status');
+const resultsSection  = document.getElementById('results-section');
+const resultLayout    = document.getElementById('result-layout');
+const resultsBadge    = document.getElementById('results-badge');
+const topkSelect      = document.getElementById('topk-select');
+const btnRefine       = document.getElementById('btn-refine');
+const refineBadge     = document.getElementById('refine-badge');
+
+let selectedFile       = null;
+let currentQueryVector = null;
+let currentQueryB64    = null;
+let currentImageHash = null;
+let refineIteration    = 0;
+
+// ── Drag & Drop ──
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('dragover');
+  const f = e.dataTransfer.files[0];
+  if (f && f.type.startsWith('image/')) handleFile(f);
+});
+
+fileInput.addEventListener('change', () => {
+  if (fileInput.files[0]) handleFile(fileInput.files[0]);
+});
+
+function handleFile(file) {
+  selectedFile = file;
+  const url = URL.createObjectURL(file);
+  queryPreview.src = url;
+  previewFilename.textContent = file.name;
+  previewMeta.innerHTML = `Ukuran: ${(file.size / 1024).toFixed(1)} KB<br>Tipe: ${file.type}`;
+  previewWrap.classList.add('visible');
+  btnSearch.disabled = false;
+
+  currentQueryVector = null;
+  currentQueryB64    = null;
+  refineIteration    = 0;
+  btnRefine.disabled = true;
+  refineBadge.classList.remove('visible');
+
+  hideStatus();
+  resultsSection.classList.remove('visible');
+}
+
+// ── SEARCH ──
+btnSearch.addEventListener('click', async () => {
+  if (!selectedFile) return;
+  setLoading(true);
+  hideStatus();
+
+  const topK = parseInt(topkSelect.value);
+  const formData = new FormData();
+  formData.append('image', selectedFile);
+  formData.append('top_k', topK);
+
+  try {
+    const res  = await fetch('/search', { method: 'POST', body: formData });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Server error');
+
+    currentQueryVector = data.query_vector;
+    currentQueryB64    = data.query_image_b64;
+    currentImageHash = data.img_hash
+    refineIteration    = 0;
+
+    refineBadge.classList.remove('visible');
+    renderResults(data.results);
+  } catch (err) {
+    showStatus('error', `❌ Error: ${err.message}`);
+  } finally {
+    setLoading(false);
+  }
+});
+
+// ── REFINE ──
+btnRefine.addEventListener('click', async () => {
+  const relevant   = [...document.querySelectorAll('.fb-yes.active')].map(b => parseInt(b.dataset.idx));
+  const irrelevant = [...document.querySelectorAll('.fb-no.active') ].map(b => parseInt(b.dataset.idx));
+
+  if (relevant.length === 0 && irrelevant.length === 0) {
+    showStatus('info', 'ℹ️ Tandai minimal satu gambar dengan 👍 atau 👎 terlebih dahulu.');
+    return;
+  }
+
+  btnRefine.disabled = true;
+  btnRefine.textContent = '⏳ Refining...';
+  hideStatus();
+
+  try {
+    const res = await fetch('/refine', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        img_hash: currentImageHash,
+        query_vector:       currentQueryVector,
+        relevant_indices:   relevant,
+        irrelevant_indices: irrelevant,
+        top_k: parseInt(topkSelect.value)
+      })
+    });
+
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Refine error');
+
+    currentQueryVector = data.refined_vector;
+    refineIteration++;
+
+    refineBadge.textContent = `Refined ×${refineIteration}`;
+    refineBadge.classList.add('visible');
+
+    renderResults(data.results);
+  } catch (err) {
+    showStatus('error', `❌ Error: ${err.message}`);
+    btnRefine.disabled = false;
+  } finally {
+    btnRefine.innerHTML = '<span>🔄</span> Refine';
+    btnRefine.disabled  = false;
+  }
+});
+
+// ── RENDER ──
+function renderResults(results) {
+  resultsBadge.textContent = `TOP ${results.length}`;
+
+  document.getElementById('summary-query-img').src = currentQueryB64;
+  const top = results[0];
+  document.getElementById('summary-top-class').textContent =
+    top ? `Hasil terbaik: Kelas ${top.class}` : 'Tidak ada hasil';
+  document.getElementById('summary-stats').innerHTML = top
+    ? `Total hasil: ${results.length} gambar ditemukan`
+    : '';
+
+  resultLayout.innerHTML = '';
+
+  if (results.length === 0) return;
+
+  // ── Featured card (rank #1) ──
+  const first = results[0];
+  const featured = document.createElement('div');
+  featured.className = 'featured-card';
+  featured.innerHTML = `
+    <div class="featured-img-wrap">
+      ${first.image_b64
+        ? `<img src="${first.image_b64}" alt="${first.image_name}" loading="lazy"/>`
+        : `<div class="card-no-img" style="height:280px">🖼️</div>`}
+      <div class="featured-badge">✦ Best Match</div>
+      <div class="featured-feedback feedback-btns">
+        <button class="fb-btn fb-yes" data-idx="${first.faiss_index}" title="Relevan">👍</button>
+        <button class="fb-btn fb-no"  data-idx="${first.faiss_index}" title="Tidak relevan">👎</button>
+      </div>
+    </div>
+    <div class="featured-body">
+      <div class="featured-label">Rank #1 — Top Result</div>
+      <div class="featured-class">${first.class}</div>
+      <div class="featured-meta">${first.image_name}</div>
+    </div>
+  `;
+
+  attachFeedback(featured, featured);
+  resultLayout.appendChild(featured);
+
+  // ── Small row (remaining cards) ──
+  const rest = results.slice(1);
+  if (rest.length > 0) {
+    const colClass = rest.length >= 4 ? '' :
+                     rest.length === 3 ? 'cols-3' :
+                     rest.length === 2 ? 'cols-2' : 'cols-1';
+
+    const row = document.createElement('div');
+    row.className = `small-row${colClass ? ' ' + colClass : ''}`;
+
+    rest.forEach((r, i) => {
+      const card = document.createElement('div');
+      card.className = 'result-card';
+      card.style.animationDelay = `${(i + 1) * 60}ms`;
+
+      card.innerHTML = `
+        <div class="card-img-wrap">
+          ${r.image_b64
+            ? `<img src="${r.image_b64}" alt="${r.image_name}" loading="lazy"/>`
+            : `<div class="card-no-img">🖼️</div>`}
+          <div class="card-rank">#${r.rank}</div>
+          <div class="feedback-btns">
+            <button class="fb-btn fb-yes" data-idx="${r.faiss_index}" title="Relevan">👍</button>
+            <button class="fb-btn fb-no"  data-idx="${r.faiss_index}" title="Tidak relevan">👎</button>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="card-class">${r.class}</div>
+          <div class="card-meta">${r.image_name}</div>
+        </div>
+      `;
+
+      attachFeedback(card, card);
+      row.appendChild(card);
+    });
+
+    resultLayout.appendChild(row);
+  }
+
+  btnRefine.disabled = !currentQueryVector;
+  resultsSection.classList.add('visible');
+  resultsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function attachFeedback(container, card) {
+  const btnYes = container.querySelector('.fb-yes');
+  const btnNo  = container.querySelector('.fb-no');
+
+  btnYes.addEventListener('click', () => {
+    const isActive = btnYes.classList.toggle('active');
+    if (isActive) {
+      btnNo.classList.remove('active');
+      card.classList.add('relevant');
+      card.classList.remove('irrelevant');
+    } else {
+      card.classList.remove('relevant');
+    }
+    updateRefineButton();
+  });
+
+  btnNo.addEventListener('click', () => {
+    const isActive = btnNo.classList.toggle('active');
+    if (isActive) {
+      btnYes.classList.remove('active');
+      card.classList.add('irrelevant');
+      card.classList.remove('relevant');
+    } else {
+      card.classList.remove('irrelevant');
+    }
+    updateRefineButton();
+  });
+}
+
+function updateRefineButton() {
+  const anyActive = document.querySelectorAll('.fb-yes.active, .fb-no.active').length > 0;
+  btnRefine.disabled = !anyActive || !currentQueryVector;
+}
+
+function setLoading(on) {
+  btnSearch.disabled = on;
+  if (on) {
+    btnSearch.classList.add('searching');
+    btnLabel.textContent = 'Mencari...';
+  } else {
+    btnSearch.classList.remove('searching');
+    btnLabel.textContent = 'Search';
+  }
+}
+
+function showStatus(type, msg) {
+  statusEl.className   = type;
+  statusEl.textContent = msg;
+}
+
+function hideStatus() {
+  statusEl.className   = '';
+  statusEl.textContent = '';
+  statusEl.style.display = 'none';
+  statusEl.style.display = '';
+}
+</script>
+</body>
+</html>
